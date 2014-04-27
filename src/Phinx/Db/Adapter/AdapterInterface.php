@@ -3,7 +3,7 @@
  * Phinx
  *
  * (The MIT license)
- * Copyright (c) 2013 Rob Morgan
+ * Copyright (c) 2014 Rob Morgan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated * documentation files (the "Software"), to
@@ -28,12 +28,12 @@
  */
 namespace Phinx\Db\Adapter;
 
-use Symfony\Component\Console\Output\OutputInterface,
-    Phinx\Db\Table,
-    Phinx\Db\Table\Column,
-    Phinx\Db\Table\Index,
-    Phinx\Db\Table\ForeignKey,
-    Phinx\Migration\MigrationInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+use Phinx\Db\Table;
+use Phinx\Db\Table\Column;
+use Phinx\Db\Table\Index;
+use Phinx\Db\Table\ForeignKey;
+use Phinx\Migration\MigrationInterface;
 
 /**
  * Adapter Interface.
@@ -42,6 +42,21 @@ use Symfony\Component\Console\Output\OutputInterface,
  */
 interface AdapterInterface
 {
+    const PHINX_TYPE_PRIMARY_KEY    = 'primary_key';
+    const PHINX_TYPE_STRING         = 'string';
+    const PHINX_TYPE_TEXT           = 'text';
+    const PHINX_TYPE_INTEGER        = 'integer';
+    const PHINX_TYPE_BIG_INTEGER    = 'biginteger';
+    const PHINX_TYPE_FLOAT          = 'float';
+    const PHINX_TYPE_DECIMAL        = 'decimal';
+    const PHINX_TYPE_DATETIME       = 'datetime';
+    const PHINX_TYPE_TIMESTAMP      = 'timestamp';
+    const PHINX_TYPE_TIME           = 'time';
+    const PHINX_TYPE_DATE           = 'date';
+    const PHINX_TYPE_BINARY         = 'binary';
+    const PHINX_TYPE_BOOLEAN        = 'boolean';
+    const PHINX_TYPE_JSON           = 'json';
+
     /**
      * Get all migrated version numbers.
      *
@@ -302,6 +317,15 @@ interface AdapterInterface
      * @return void
      */
     public function dropIndex($tableName, $columns);
+    
+    /**
+     * Drops the index specified by name from a database table.
+     * 
+     * @param string $tableName
+     * @param string $indexName
+     * @return void
+     */
+    public function dropIndexByName($tableName, $indexName);
 
     /**
      * Checks to see if a foreign key exists.

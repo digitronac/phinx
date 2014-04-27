@@ -3,33 +3,32 @@
 namespace Test\Phinx\Db\Adapter;
 
 use Symfony\Component\Console\Output\NullOutput;
-use Phinx\Db\Adapter\MysqlAdapter;
+use Phinx\Db\Adapter\PostgresAdapter;
 
-class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
+class PostgresAdapterTest extends \PHPUnit_Framework_TestCase
 {
     /**
-     * @var \Phinx\Db\Adapter\MysqlAdapter
+     * @var \Phinx\Db\Adapter\PostgresqlAdapter
      */
     private $adapter;
     
     public function setUp()
     {
-        if (!TESTS_PHINX_DB_ADAPTER_MYSQL_ENABLED) {
-            $this->markTestSkipped('Mysql tests disabled. See TESTS_PHINX_DB_ADAPTER_MYSQL_ENABLED constant.');
+        if (!TESTS_PHINX_DB_ADAPTER_POSTGRES_ENABLED) {
+            $this->markTestSkipped('Postgres tests disabled.  See TESTS_PHINX_DB_ADAPTER_POSTGRES_ENABLED constant.');
         }
 
         $options = array(
-            'host' => TESTS_PHINX_DB_ADAPTER_MYSQL_HOST,
-            'name' => TESTS_PHINX_DB_ADAPTER_MYSQL_DATABASE,
-            'user' => TESTS_PHINX_DB_ADAPTER_MYSQL_USERNAME,
-            'pass' => TESTS_PHINX_DB_ADAPTER_MYSQL_PASSWORD,
-            'port' => TESTS_PHINX_DB_ADAPTER_MYSQL_PORT
+            'host' => TESTS_PHINX_DB_ADAPTER_POSTGRES_HOST,
+            'name' => TESTS_PHINX_DB_ADAPTER_POSTGRES_DATABASE,
+            'user' => TESTS_PHINX_DB_ADAPTER_POSTGRES_USERNAME,
+            'pass' => TESTS_PHINX_DB_ADAPTER_POSTGRES_PASSWORD,
+            'port' => TESTS_PHINX_DB_ADAPTER_POSTGRES_PORT
         );
-        $this->adapter = new MysqlAdapter($options, new NullOutput());
+        $this->adapter = new PostgresAdapter($options, new NullOutput());
 
-        // ensure the database is empty for each test
-        $this->adapter->dropDatabase($options['name']);
-        $this->adapter->createDatabase($options['name']);
+        $this->adapter->dropAllSchemas();
+        $this->adapter->createSchema('public');
 
         // leave the adapter in a disconnected state for each test
         $this->adapter->disconnect();
@@ -37,7 +36,10 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
     
     public function tearDown()
     {
-        unset($this->adapter);
+        if ($this->adapter) {
+            $this->adapter->dropAllSchemas();
+            unset($this->adapter);
+        }
     }
     
     public function testConnection()
@@ -56,15 +58,15 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
     public function testConnectionWithInvalidCredentials()
     {
         $options = array(
-            'host' => TESTS_PHINX_DB_ADAPTER_MYSQL_HOST,
-            'name' => TESTS_PHINX_DB_ADAPTER_MYSQL_DATABASE,
-            'port' => TESTS_PHINX_DB_ADAPTER_MYSQL_PORT,
+            'host' => TESTS_PHINX_DB_ADAPTER_POSTGRES_HOST,
+            'name' => TESTS_PHINX_DB_ADAPTER_POSTGRES_DATABASE,
+            'port' => TESTS_PHINX_DB_ADAPTER_POSTGRES_PORT,
             'user' => 'invaliduser',
             'pass' => 'invalidpass'
         );
         
         try {
-            $adapter = new MysqlAdapter($options, new NullOutput());
+            $adapter = new PostgresAdapter($options, new NullOutput());
             $adapter->connect();
             $this->fail('Expected the adapter to throw an exception');
         } catch (\InvalidArgumentException $e) {
@@ -88,14 +90,22 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->adapter->hasTable($this->adapter->getSchemaTableName()));
     }
     
+    public function testQuoteSchemaName()
+    {
+        $this->assertEquals('"schema"', $this->adapter->quoteSchemaName('schema'));
+        $this->assertEquals('"schema.schema"', $this->adapter->quoteSchemaName('schema.schema'));
+    }
+
     public function testQuoteTableName()
     {
-        $this->assertEquals('`test_table`', $this->adapter->quoteTableName('test_table'));
+        $this->assertEquals('"table"', $this->adapter->quoteTableName('table'));
+        $this->assertEquals('"table.table"', $this->adapter->quoteTableName('table.table'));
     }
     
     public function testQuoteColumnName()
     {
-        $this->assertEquals('`test_column`', $this->adapter->quoteColumnName('test_column'));
+        $this->assertEquals('"string"', $this->adapter->quoteColumnName('string'));
+        $this->assertEquals('"string.string"', $this->adapter->quoteColumnName('string.string'));
     }
     
     public function testCreateTable()
@@ -110,7 +120,7 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->adapter->hasColumn('ntable', 'email'));
         $this->assertFalse($this->adapter->hasColumn('ntable', 'address'));
     }
-
+          
     public function testCreateTableCustomIdColumn()
     {
         $table = new \Phinx\Db\Table('ntable', array('id' => 'custom_id'), $this->adapter);
@@ -122,12 +132,6 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->adapter->hasColumn('ntable', 'realname'));
         $this->assertTrue($this->adapter->hasColumn('ntable', 'email'));
         $this->assertFalse($this->adapter->hasColumn('ntable', 'address'));
-    }
-
-    public function testCreateTableWithNoOptions()
-    {
-        $this->markTestIncomplete();
-        //$this->adapter->createTable('ntable', )
     }
     
     public function testCreateTableWithNoPrimaryKey()
@@ -179,8 +183,8 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->adapter->hasIndex('table1', array('email')));
         $this->assertFalse($this->adapter->hasIndex('table1', array('email', 'user_email')));
     }
-
-    public function testCreateTableWithNamedIndex()
+    
+    public function testCreateTableWithNamedIndexes()
     {
         $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
         $table->addColumn('email', 'string')
@@ -189,32 +193,7 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->adapter->hasIndex('table1', array('email')));
         $this->assertFalse($this->adapter->hasIndex('table1', array('email', 'user_email')));
     }
-    
-    public function testCreateTableWithMultiplePKsAndUniqueIndexes()
-    {
-        $this->markTestIncomplete();
-    }
-    
-    public function testCreateTableWithMyISAMEngine()
-    {
-        $table = new \Phinx\Db\Table('ntable', array('engine' => 'MyISAM'), $this->adapter);
-        $table->addColumn('realname', 'string')
-              ->save();
-        $this->assertTrue($this->adapter->hasTable('ntable'));
-        $row = $this->adapter->fetchRow(sprintf('SHOW TABLE STATUS WHERE Name = "%s"', 'ntable'));
-        $this->assertEquals('MyISAM', $row['Engine']);
-    }
-    
-    public function testCreateTableWithLatin1Collate()
-    {
-        $table = new \Phinx\Db\Table('latin1_table', array('collation' => 'latin1_general_ci'), $this->adapter);
-        $table->addColumn('name', 'string')
-              ->save();
-        $this->assertTrue($this->adapter->hasTable('latin1_table'));
-        $row = $this->adapter->fetchRow(sprintf('SHOW TABLE STATUS WHERE Name = "%s"', 'latin1_table'));
-        $this->assertEquals('latin1_general_ci', $row['Collation']);
-    }
-    
+      
     public function testRenameTable()
     {
         $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
@@ -234,10 +213,6 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $table->addColumn('email', 'string')
               ->save();
         $this->assertTrue($table->hasColumn('email'));
-        $table->addColumn('realname', 'string', array('after' => 'id'))
-              ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertEquals('realname', $rows[1]['Field']);
     }
 
     public function testAddColumnWithDefaultValue()
@@ -246,8 +221,12 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $table->save();
         $table->addColumn('default_zero', 'string', array('default' => 'test'))
               ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertEquals("test", $rows[1]['Default']);
+        $columns = $this->adapter->getColumns('table1');
+        foreach ($columns as $column) {
+            if ($column->getName() == 'default_zero') {
+                $this->assertEquals("'test'::character varying", $column->getDefault());
+            }
+        }
     }
 
     public function testAddColumnWithDefaultZero()
@@ -256,54 +235,15 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $table->save();
         $table->addColumn('default_zero', 'integer', array('default' => 0))
               ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertNotNull($rows[1]['Default']);
-        $this->assertEquals("0", $rows[1]['Default']);
+        $columns = $this->adapter->getColumns('table1');
+        foreach ($columns as $column) {
+            if ($column->getName() == 'default_zero') {
+                $this->assertNotNull($column->getDefault());
+                $this->assertEquals('0', $column->getDefault());
+            }
+        }
     }
-
-    public function testAddColumnWithDefaultEmptyString()
-    {
-        $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
-        $table->save();
-        $table->addColumn('default_zero', 'integer', array('default' => null))
-              ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertNull($rows[1]['Default']);
-    }
-
-    public function testAddIntegerColumnWithDefaultSigned()
-    {
-        $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
-        $table->save();
-        $this->assertFalse($table->hasColumn('user_id'));
-        $table->addColumn('user_id', 'integer')
-              ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertEquals('int(11)', $rows[1]['Type']);
-    }
-
-    public function testAddIntegerColumnWithSignedEqualsFalse()
-    {
-        $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
-        $table->save();
-        $this->assertFalse($table->hasColumn('user_id'));
-        $table->addColumn('user_id', 'integer', array('signed' => false))
-              ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertEquals('int(11) unsigned', $rows[1]['Type']);
-    }
-
-    public function testAddStringColumnWithSignedEqualsFalse()
-    {
-        $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
-        $table->save();
-        $this->assertFalse($table->hasColumn('user_id'));
-        $table->addColumn('user_id', 'string', array('signed' => false))
-              ->save();
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertEquals('varchar(255)', $rows[1]['Type']);
-    }
-
+    
     public function testRenameColumn()
     {
         $table = new \Phinx\Db\Table('t', array(), $this->adapter);
@@ -331,7 +271,7 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
                 $e,
                 'Expected exception of type InvalidArgumentException, got ' . get_class($e)
             );
-            $this->assertEquals('The specified column doesn\'t exist: column2', $e->getMessage());
+            $this->assertEquals('The specified column does not exist: column2', $e->getMessage());
         }
     }
     
@@ -347,52 +287,17 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->adapter->hasColumn('t', 'column1'));
         $newColumn2 = new \Phinx\Db\Table\Column();
         $newColumn2->setName('column2')
-                   ->setType('string');
+                   ->setType('string')
+                   ->setNull(true);
         $table->changeColumn('column1', $newColumn2);
         $this->assertFalse($this->adapter->hasColumn('t', 'column1'));
         $this->assertTrue($this->adapter->hasColumn('t', 'column2'));
-    }
-
-    public function testChangeColumnDefaultValue()
-    {
-        $table = new \Phinx\Db\Table('t', array(), $this->adapter);
-        $table->addColumn('column1', 'string', array('default' => 'test'))
-              ->save();
-        $newColumn1 = new \Phinx\Db\Table\Column();
-        $newColumn1->setDefault('test1')
-                   ->setType('string');
-        $table->changeColumn('column1', $newColumn1);
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM t');
-        $this->assertNotNull($rows[1]['Default']);
-        $this->assertEquals("test1", $rows[1]['Default']);
-    }
-
-
-    public function testChangeColumnDefaultToZero()
-    {
-        $table = new \Phinx\Db\Table('t', array(), $this->adapter);
-        $table->addColumn('column1', 'integer')
-              ->save();
-        $newColumn1 = new \Phinx\Db\Table\Column();
-        $newColumn1->setDefault(0)
-                   ->setType('integer');
-        $table->changeColumn('column1', $newColumn1);
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM t');
-        $this->assertNotNull($rows[1]['Default']);
-        $this->assertEquals("0", $rows[1]['Default']);
-    }
-
-    public function testChangeColumnDefaultToNull()
-    {
-        $table = new \Phinx\Db\Table('t', array(), $this->adapter);
-        $table->addColumn('column1', 'string', array('default' => 'test'))
-              ->save();
-        $newColumn1 = new \Phinx\Db\Table\Column();
-        $newColumn1->setDefault(null)
-                   ->setType('string');
-        $table->changeColumn('column1', $newColumn1);
-        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM t');
-        $this->assertNull($rows[1]['Default']);
+        $columns = $this->adapter->getColumns('t');
+        foreach ($columns as $column) {
+            if ($column->getName() == 'column2') {
+                $this->assertTrue($column->isNull());
+            }
+        }
     }
     
     public function testDropColumn()
@@ -414,14 +319,13 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
               ->addColumn('column4', 'text')
               ->addColumn('column5', 'float')
               ->addColumn('column6', 'decimal')
-              ->addColumn('column7', 'datetime')
-              ->addColumn('column8', 'time')
-              ->addColumn('column9', 'timestamp')
-              ->addColumn('column10', 'date')
-              ->addColumn('column11', 'binary')
-              ->addColumn('column12', 'boolean')
-              ->addColumn('column13', 'string', array('limit' => 10))
-              ->addColumn('column15', 'integer', array('limit' => 10));
+              ->addColumn('column7', 'time')
+              ->addColumn('column8', 'timestamp')
+              ->addColumn('column9', 'date')
+              ->addColumn('column10', 'boolean')
+              ->addColumn('column11', 'datetime')
+              ->addColumn('column12', 'binary')
+              ->addColumn('column13', 'string', array('limit' => 10));
         $pendingColumns = $table->getPendingColumns();
         $table->save();
         $columns = $this->adapter->getColumns('t');
@@ -444,7 +348,7 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
     
     public function testDropIndex()
     {
-        // single column index
+         // single column index
         $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
         $table->addColumn('email', 'string')
               ->addIndex('email')
@@ -498,10 +402,11 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $table2 = new \Phinx\Db\Table('table2', array(), $this->adapter);
         $table2->addColumn('fname', 'string')
                ->addColumn('lname', 'string')
-               ->addIndex(array('fname', 'lname'), array('name' => 'twocolumnindex'))
+               ->addIndex(array('fname', 'lname'),
+                          array('name' => 'twocolumnuniqueindex', 'unique' => true))
                ->save();
         $this->assertTrue($table2->hasIndex(array('fname', 'lname')));
-        $this->adapter->dropIndexByName($table2->getName(), 'twocolumnindex');
+        $this->adapter->dropIndexByName($table2->getName(), 'twocolumnuniqueindex');
         $this->assertFalse($table2->hasIndex(array('fname', 'lname')));
     }
 
@@ -536,6 +441,7 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
            ->setReferencedColumns(array('id'));
 
         $this->adapter->addForeignKey($table, $fk);
+        $this->assertTrue($this->adapter->hasForeignKey($table->getName(), array('ref_table_id')));
         $this->adapter->dropForeignKey($table->getName(), array('ref_table_id'));
         $this->assertFalse($this->adapter->hasForeignKey($table->getName(), array('ref_table_id')));
     }
@@ -543,7 +449,7 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
     public function testHasDatabase()
     {
         $this->assertFalse($this->adapter->hasDatabase('fake_database_name'));
-        $this->assertTrue($this->adapter->hasDatabase(TESTS_PHINX_DB_ADAPTER_MYSQL_DATABASE));
+        $this->assertTrue($this->adapter->hasDatabase(TESTS_PHINX_DB_ADAPTER_POSTGRES_DATABASE));
     }
     
     public function testDropDatabase()
@@ -554,15 +460,164 @@ class MysqlAdapterTest extends \PHPUnit_Framework_TestCase
         $this->adapter->dropDatabase('temp_phinx_database');
     }
 
-    public function testAddColumnWithComment()
+    public function testCreateSchema()
+    {
+        $this->adapter->createSchema('foo');
+        $this->assertTrue($this->adapter->hasSchema('foo'));
+    }
+
+    public function testDropSchema()
+    {
+        $this->adapter->createSchema('foo');
+        $this->assertTrue($this->adapter->hasSchema('foo'));
+        $this->adapter->dropSchema('foo');
+        $this->assertFalse($this->adapter->hasSchema('foo'));
+    }
+
+    public function testDropAllSchemas()
+    {
+        $this->adapter->createSchema('foo');
+        $this->adapter->createSchema('bar');
+
+        $this->assertTrue($this->adapter->hasSchema('foo'));
+        $this->assertTrue($this->adapter->hasSchema('bar'));
+        $this->adapter->dropAllSchemas();
+        $this->assertFalse($this->adapter->hasSchema('foo'));
+        $this->assertFalse($this->adapter->hasSchema('bar'));
+    }
+    
+    /**
+     * @expectedException \RuntimeException
+     * @expectedExceptionMessage The type: "idontexist" is not supported
+     */
+    public function testInvalidSqlType()
+    {
+        $this->adapter->getSqlType('idontexist');
+    }
+
+    public function testGetPhinxType()
+    {
+        $this->assertEquals('integer', $this->adapter->getPhinxType('int'));
+        $this->assertEquals('integer', $this->adapter->getPhinxType('int4'));
+        $this->assertEquals('integer', $this->adapter->getPhinxType('integer'));
+
+        $this->assertEquals('biginteger', $this->adapter->getPhinxType('bigint'));
+        $this->assertEquals('biginteger', $this->adapter->getPhinxType('int8'));
+
+        $this->assertEquals('decimal', $this->adapter->getPhinxType('decimal'));
+        $this->assertEquals('decimal', $this->adapter->getPhinxType('numeric'));
+
+        $this->assertEquals('float', $this->adapter->getPhinxType('real'));
+        $this->assertEquals('float', $this->adapter->getPhinxType('float4'));
+
+        $this->assertEquals('boolean', $this->adapter->getPhinxType('bool'));
+        $this->assertEquals('boolean', $this->adapter->getPhinxType('boolean'));
+        
+        $this->assertEquals('string', $this->adapter->getPhinxType('character varying'));
+        $this->assertEquals('string', $this->adapter->getPhinxType('varchar'));
+
+        $this->assertEquals('text', $this->adapter->getPhinxType('text'));
+
+        $this->assertEquals('time', $this->adapter->getPhinxType('time'));
+        $this->assertEquals('time', $this->adapter->getPhinxType('timetz'));
+        $this->assertEquals('time', $this->adapter->getPhinxType('time with time zone'));
+        $this->assertEquals('time', $this->adapter->getPhinxType('time without time zone'));
+
+        $this->assertEquals('datetime', $this->adapter->getPhinxType('timestamp'));
+        $this->assertEquals('datetime', $this->adapter->getPhinxType('timestamptz'));
+        $this->assertEquals('datetime', $this->adapter->getPhinxType('timestamp with time zone'));
+        $this->assertEquals('datetime', $this->adapter->getPhinxType('timestamp without time zone'));
+
+    }
+
+    public function testCanAddColumnComment()
     {
         $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
-        $table->addColumn('column1', 'string', array('comment' => $comment = 'Comments from "column1"'))
+        $table->addColumn('field1', 'string', array('comment' => $comment = 'Comments from column "field1"'))
+              ->save();
+              
+        $row = $this->adapter->fetchRow(
+            'SELECT
+                (select pg_catalog.col_description(oid,cols.ordinal_position::int)
+            from pg_catalog.pg_class c 
+            where c.relname=cols.table_name ) as column_comment
+            FROM information_schema.columns cols 
+            WHERE cols.table_catalog=\''. TESTS_PHINX_DB_ADAPTER_POSTGRES_DATABASE .'\'
+            AND cols.table_name=\'table1\'
+            AND cols.column_name = \'field1\''
+        );
+
+        $this->assertEquals($comment, $row['column_comment'], 'Dont set column comment correctly');
+    }
+
+    /**
+     * @depends testCanAddColumnComment
+     */
+    public function testCanChangeColumnComment()
+    {
+        $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
+        $table->addColumn('field1', 'string', array('comment' => 'Comments from column "field1"'))
               ->save();
 
-        $rows = $this->adapter->fetchAll('SELECT column_name, column_comment FROM information_schema.columns WHERE table_name = "table1"');
-        $columnWithComment = $rows[1];
+        $table->changeColumn('field1', 'string', array('comment' => $comment = 'New Comments from column "field1"'))
+              ->save();
 
-        $this->assertEquals($comment, $columnWithComment['column_comment'], 'Dont set column comment correctly');
+        $row = $this->adapter->fetchRow(
+            'SELECT
+                (select pg_catalog.col_description(oid,cols.ordinal_position::int)
+            from pg_catalog.pg_class c 
+            where c.relname=cols.table_name ) as column_comment
+            FROM information_schema.columns cols 
+            WHERE cols.table_catalog=\''. TESTS_PHINX_DB_ADAPTER_POSTGRES_DATABASE .'\'
+            AND cols.table_name=\'table1\'
+            AND cols.column_name = \'field1\''
+        );
+
+        $this->assertEquals($comment, $row['column_comment'], 'Dont change column comment correctly');
+    }
+
+    /**
+     * @depends testCanAddColumnComment
+     */
+    public function testCanRemoveColumnComment()
+    {
+        $table = new \Phinx\Db\Table('table1', array(), $this->adapter);
+        $table->addColumn('field1', 'string', array('comment' => 'Comments from column "field1"'))
+              ->save();
+
+        $table->changeColumn('field1', 'string', array('comment' => 'null'))
+              ->save();
+
+        $row = $this->adapter->fetchRow(
+            'SELECT
+                (select pg_catalog.col_description(oid,cols.ordinal_position::int)
+            from pg_catalog.pg_class c 
+            where c.relname=cols.table_name ) as column_comment
+            FROM information_schema.columns cols 
+            WHERE cols.table_catalog=\''. TESTS_PHINX_DB_ADAPTER_POSTGRES_DATABASE .'\'
+            AND cols.table_name=\'table1\'
+            AND cols.column_name = \'field1\''
+        );
+
+        $this->assertEmpty($row['column_comment'], 'Dont remove column comment correctly');
+    }
+
+    /**
+     * Test that column names are properly escaped when creating Foreign Keys
+     */
+    public function testForignKeysArePropertlyEscaped()
+    {
+        $userId = 'user';
+        $sessionId = 'session';
+
+        $local = new \Phinx\Db\Table('users', array('primary_key' => $userId, 'id' => $userId), $this->adapter);
+        $local->create();
+
+        $foreign = new \Phinx\Db\Table('sessions', array('primary_key' => $sessionId, 'id' => $sessionId), $this->adapter);
+        $foreign->addColumn('user', 'integer')
+                ->addForeignKey('user', 'users', $userId)
+                ->create();
+
+        $this->assertTrue($foreign->hasForeignKey('user'));
     }
 }

@@ -3,7 +3,7 @@
  * Phinx
  *
  * (The MIT license)
- * Copyright (c) 2013 Rob Morgan
+ * Copyright (c) 2014 Rob Morgan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated * documentation files (the "Software"), to
@@ -83,6 +83,16 @@ class Column
      * @var string
      */
     protected $update;
+
+    /**
+     * @var string
+     */
+    protected $comment;
+
+    /**
+     * @var boolean
+     */
+    protected $signed = true;
 
     /**
      * Sets the column name.
@@ -328,6 +338,60 @@ class Column
     }
 
     /**
+     * Sets the column comment.
+     *
+     * @param string $comment
+     * @return Column
+     */
+    public function setComment($comment)
+    {
+        $this->comment = $comment;
+        return $this;
+    }
+
+    /**
+     * Gets the column comment.
+     *
+     * @return string
+     */
+    public function getComment()
+    {
+        return $this->comment;
+    }
+
+    /**
+     * Sets whether field should be signed.
+     *
+     * @param bool $signed
+     * @return Column
+     */
+    public function setSigned($signed)
+    {
+        $this->signed = (bool) $signed;
+        return $this;
+    }
+
+    /**
+     * Gets whether field should be signed.
+     *
+     * @return string
+     */
+    public function getSigned()
+    {
+        return $this->signed;
+    }
+
+    /**
+     * Should the column be signed?
+     *
+     * @return boolean
+     */
+    public function isSigned()
+    {
+        return $this->getSigned();
+    }
+
+    /**
      * Utility method that maps an array of column options to this objects methods.
      *
      * @param array $options Options
@@ -336,7 +400,7 @@ class Column
     public function setOptions($options)
     {
         // Valid Options
-        $validOptions = array('limit', 'length', 'default', 'null', 'precision', 'scale', 'after', 'update');
+        $validOptions = array('limit', 'length', 'default', 'null', 'precision', 'scale', 'after', 'update', 'comment', 'signed');
         foreach ($options as $option => $value) {
             if (!in_array($option, $validOptions)) {
                 throw new \RuntimeException('\'' . $option . '\' is not a valid column option.');

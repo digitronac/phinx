@@ -119,6 +119,9 @@ example:
 
 When executing this migration Phinx will create the ``user_logins`` table on
 the way up and automatically figure out how to drop the table on the way down.
+Please be aware that when a ``change`` method exists Phinx will automatically
+ignore the ``up`` and ``down`` methods. If you need to use these methods it is
+recommended to create a separate migration file.
 
 .. note::
 
@@ -364,6 +367,28 @@ To do this, we need to override the default ``id`` field name:
 
             }
         }
+        
+Valid Column Types
+~~~~~~~~~~~~~~~~~~
+
+Column types are specified as strings and can be one of: 
+
+-  primary_key
+-  string
+-  text
+-  integer
+-  biginteger
+-  float
+-  decimal
+-  datetime
+-  timestamp
+-  time
+-  date
+-  binary
+-  boolean
+
+In addition, the Postgres adapter supports a ``json`` column type
+(PostgreSQL 9.3 and above).
 
 Determining Whether a Table Exists
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -509,6 +534,154 @@ To rename a column access an instance of the Table object then call the
             }
         }
 
+Adding a Column After Another Column
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When adding a column you can dictate it's position using the ``after`` option.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Change Method.
+             */
+            public function change()
+            {
+                $table = $this->table('users');
+                $table->addColumn('city', 'string', array('after' => 'email'))
+                      ->update();
+            }
+        }
+
+Specifying a Column Limit
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can limit the maximum length of a column by using the ``limit`` option.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Change Method.
+             */
+            public function change()
+            {
+                $table = $this->table('tags');
+                $table->addColumn('short_name', 'string', array('limit' => 30))
+                      ->update();
+            }
+        }
+
+Working with Indexes
+~~~~~~~~~~~~~~~~~~~~
+
+To add an index to a table you can simply call the ``addIndex()`` method on the
+table object.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Migrate Up.
+             */
+            public function up()
+            {
+                $table = $this->table('users');
+                $table->addColumn('city', 'string')
+                      ->addIndex(array('city'))
+                      ->save();
+            }
+
+            /**
+             * Migrate Down.
+             */
+            public function down()
+            {
+
+            }
+        }
+
+By default Phinx instructs the database adapter to create a normal index. We
+can pass an additional parameter to the ``addIndex()`` method to specify a
+unique index.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Migrate Up.
+             */
+            public function up()
+            {
+                $table = $this->table('users');
+                $table->addColumn('email', 'string')
+                      ->addIndex(array('email'), array('unique' => true))
+                      ->save();
+            }
+
+            /**
+             * Migrate Down.
+             */
+            public function down()
+            {
+
+            }
+        }
+        
+Removing indexes is as easy as calling the ``removeIndex()`` method. You must
+call this method for each index.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Migrate Up.
+             */
+            public function up()
+            {
+                $table = $this->table('users');
+                $table->removeIndex(array('email'));
+            }
+
+            /**
+             * Migrate Down.
+             */
+            public function down()
+            {
+
+            }
+        }
+
+.. note::
+
+    There is no need to call the ``save()`` method when using 
+    ``removeIndex()``. The index will be removed immediately.
+
 Working With Foreign Keys
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -606,6 +779,24 @@ Finally to delete a foreign key use the ``dropForeignKey`` method.
 
             }
         }
+
+Valid Column Options
+~~~~~~~~~~~~~~~~~~~~
+
+The following are valid column options:
+
+-  limit
+-  length
+-  default
+-  null
+-  precision
+-  scale
+-  after
+-  update
+-  comment
+
+You can pass one or more of these options to any column with the optional
+third argument array.
 
 The Save Method
 ~~~~~~~~~~~~~~~

@@ -13,8 +13,11 @@ class TableTest extends \PHPUnit_Framework_TestCase
             $table->addColumn('realname', 'string');
             $this->fail('Expected the table object to throw an exception');
         } catch (\RuntimeException $e) {
-            $this->assertInstanceOf('RuntimeException', $e,
-                'Expected exception of type RuntimeException, got ' . get_class($e));
+            $this->assertInstanceOf(
+                'RuntimeException',
+                $e,
+                'Expected exception of type RuntimeException, got ' . get_class($e)
+            );
             $this->assertRegExp('/An adapter must be specified to add a column./', $e->getMessage());
         }
     }
@@ -41,8 +44,11 @@ class TableTest extends \PHPUnit_Framework_TestCase
             $table = new \Phinx\Db\Table('ntable', array(), $adapter);
             $table->addColumn($column);
         } catch (\InvalidArgumentException $e) {
-            $this->assertInstanceOf('InvalidArgumentException', $e,
-                'Expected exception of type InvalidArgumentException, got ' . get_class($e));
+            $this->assertInstanceOf(
+                'InvalidArgumentException',
+                $e,
+                'Expected exception of type InvalidArgumentException, got ' . get_class($e)
+            );
             $this->assertRegExp('/An invalid column type was specified./', $e->getMessage());
         }
     }
@@ -99,6 +105,27 @@ class TableTest extends \PHPUnit_Framework_TestCase
         $table->getColumns();
     }
     
+    public function testAddIndex()
+    {
+        $adapter = new MysqlAdapter(array());
+        $table = new \Phinx\Db\Table('ntable', array(), $adapter);
+        $table->addIndex(array('email'), array('unique' => true, 'name' => 'myemailindex'));
+        $indexes = $table->getIndexes();
+        $this->assertEquals(\Phinx\Db\Table\Index::UNIQUE, $indexes[0]->getType());
+        $this->assertEquals('myemailindex', $indexes[0]->getName());
+        $this->assertContains('email', $indexes[0]->getColumns());
+    }
+    
+    public function testAddIndexWithoutType()
+    {
+        $adapter = new MysqlAdapter(array());
+        $table = new \Phinx\Db\Table('ntable', array(), $adapter);
+        $table->addIndex(array('email'));
+        $indexes = $table->getIndexes();
+        $this->assertEquals(\Phinx\Db\Table\Index::INDEX, $indexes[0]->getType());
+        $this->assertContains('email', $indexes[0]->getColumns());
+    }
+    
     public function testAddIndexWithIndexObject()
     {
         $adapter = new MysqlAdapter(array());
@@ -121,6 +148,16 @@ class TableTest extends \PHPUnit_Framework_TestCase
         $table = new \Phinx\Db\Table('ntable', array(), $adapterStub);
         $table->removeIndex(array('email'));
     }
+    
+    public function testRemoveIndexByName()
+    {
+        // stub adapter
+        $adapterStub = $this->getMock('\Phinx\Db\Adapter\MysqlAdapter', array(), array(array()));
+        $adapterStub->expects($this->once())
+                    ->method('dropIndexByName');
+        $table = new \Phinx\Db\Table('ntable', array(), $adapterStub);
+        $table->removeIndexByName('emailindex');
+    }
 
     public function testAddForeignKey()
     {
@@ -142,5 +179,22 @@ class TableTest extends \PHPUnit_Framework_TestCase
                     ->method('dropForeignKey');
         $table = new \Phinx\Db\Table('ntable', array(), $adapterStub);
         $table->dropForeignKey('test');
+    }
+
+    public function testAddTimestamps()
+    {
+        $adapter = new MysqlAdapter(array());
+        $table = new \Phinx\Db\Table('ntable', array(), $adapter);
+        $table->addTimestamps();
+
+        $columns = $table->getPendingColumns();
+
+        $this->assertEquals('created_at', $columns[0]->getName());
+        $this->assertEquals('timestamp', $columns[0]->getType());
+
+        $this->assertEquals('updated_at', $columns[1]->getName());
+        $this->assertEquals('timestamp', $columns[1]->getType());
+        $this->assertTrue($columns[1]->isNull());
+        $this->assertNull($columns[1]->getDefault());
     }
 }

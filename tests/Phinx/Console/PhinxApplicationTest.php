@@ -2,8 +2,8 @@
 
 namespace Test\Phinx\Console;
  
-use Symfony\Component\Console\Tester\ApplicationTester,
-    Phinx\Console\PhinxApplication;
+use Symfony\Component\Console\Tester\ApplicationTester;
+use Phinx\Console\PhinxApplication;
 
 class PhinxApplicationTest extends \PHPUnit_Framework_TestCase
 {
@@ -27,7 +27,7 @@ class PhinxApplicationTest extends \PHPUnit_Framework_TestCase
     public function provider()
     {
         return array(
-            array('help', '/help \[--xml\] \[command_name\]/')
+            array('help', '/help \[--xml\] \[--format="..."\] \[--raw\] \[command_name\]/')
         );
     }
 }
