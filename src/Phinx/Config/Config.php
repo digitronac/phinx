@@ -69,7 +69,7 @@ class Config implements \ArrayAccess
      */
     public static function fromYaml($configFilePath)
     {
-        $configArray = Yaml::parse($configFilePath);
+        $configArray = Yaml::parse(file_get_contents($configFilePath));
         return new self($configArray, $configFilePath);
     }
     
